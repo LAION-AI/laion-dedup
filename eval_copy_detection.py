@@ -246,37 +246,43 @@ def extract_features(image_list, model, transform, args, only_rank_zero=True, to
 
     data_loader = torch.utils.data.DataLoader(tempdataset, batch_size=args.batch_size_per_gpu,
         num_workers=args.num_workers, drop_last=False,
-        sampler=torch.utils.data.DistributedSampler(tempdataset, shuffle=False))
+        sampler=torch.utils.data.DistributedSampler(tempdataset, shuffle=False) if args.distributed else None)
     features = None
     for samples, index in utils.MetricLogger(delimiter="  ").log_every(data_loader, 10):
         samples, index = samples.cuda(non_blocking=True), index.cuda(non_blocking=True)
         with torch.cuda.amp.autocast(enabled=args.amp):
             feats = extract_features_batch(model, samples, args)
         # feats = feats.view(len(feats), -1)
-        if (dist.get_rank() == 0 or not only_rank_zero) and features is None:
+        if (not args.distributed or (dist.get_rank() == 0 or not only_rank_zero)) and features is None:
             features = torch.zeros(len(data_loader.dataset), feats.shape[1], feats.shape[2])
             if args.use_cuda:
                 features = features.cuda(non_blocking=True)
         # get indexes from all processes
-        y_all = torch.empty(dist.get_world_size(), index.size(0), dtype=index.dtype, device=index.device)
-        y_l = list(y_all.unbind(0))
-        y_all_reduce = torch.distributed.all_gather(y_l, index, async_op=True)
-        y_all_reduce.wait()
-        index_all = torch.cat(y_l)
+        if args.distributed:
+            y_all = torch.empty(dist.get_world_size(), index.size(0), dtype=index.dtype, device=index.device)
+            y_l = list(y_all.unbind(0))
+            y_all_reduce = torch.distributed.all_gather(y_l, index, async_op=True)
+            y_all_reduce.wait()
+            index_all = torch.cat(y_l)
+        else:
+            index_all = index
 
         # share features between processes
-        feats_all = torch.empty(dist.get_world_size(), feats.size(0), feats.size(1), feats.size(2), dtype=feats.dtype, device=feats.device)
-        output_l = list(feats_all.unbind(0))
-        output_all_reduce = torch.distributed.all_gather(output_l, feats, async_op=True)
-        output_all_reduce.wait()
+        if args.distributed:
+            feats_all = torch.empty(dist.get_world_size(), feats.size(0), feats.size(1), feats.size(2), dtype=feats.dtype, device=feats.device)
+            output_l = list(feats_all.unbind(0))
+            output_all_reduce = torch.distributed.all_gather(output_l, feats, async_op=True)
+            output_all_reduce.wait()
+        else:
+            output_l = [feats]
 
         # update storage feature matrix
-        if dist.get_rank() == 0 or not only_rank_zero:
+        if not args.distributed or (dist.get_rank() == 0 or not only_rank_zero):
             if args.use_cuda:
                 features.index_copy_(0, index_all, torch.cat(output_l))
             else:
                 features.index_copy_(0, index_all.cpu(), torch.cat(output_l).cpu())
-    if to_vector and (dist.get_rank() == 0 or not only_rank_zero):
+    if to_vector and (not args.distributed or (dist.get_rank() == 0 or not only_rank_zero)):
         features = features.view(features.size(0), -1)
     return features  # features is still None for every rank which is not 0 (main)
 
