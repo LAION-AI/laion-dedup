@@ -1,0 +1,6 @@
+torch
+torchvision
+pillow
+timm
+transformers
+vissl
