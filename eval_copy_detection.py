@@ -341,15 +341,20 @@ def load_model_and_transform(args):
         from classy_vision.generic.util import load_checkpoint
         from vissl.utils.checkpoint import init_model_from_consolidated_weights
         config = {
-            "seer_1.5B": "regnet256gf_1_trunk.yaml",
+            "seer_1.5B": "regnet256Gf_1.yaml",
             "seer_10B": "regnet10B.yaml",
             "seer_10B_sliced": "regnet10B.yaml",
         }[args.model]
         ckpt = args.model + ".th"
         cfg = [
-              f'config=benchmark/nearest_neighbor/models/seer/{config}',
+              #f'config=benchmark/nearest_neighbor/models/seer/{config}',
+              f"config=pretrain/swav/models/{config}",
               f'config.MODEL.WEIGHTS_INIT.PARAMS_FILE={ckpt}', # Specify path for the model weights.
               'config.MODEL.FEATURE_EVAL_SETTINGS.EVAL_MODE_ON=True', # Turn on model evaluation mode.
+              'config.MODEL.FEATURE_EVAL_SETTINGS.FREEZE_TRUNK_ONLY=True', # Turn on model evaluation mode.
+              '+config.MODEL.FEATURE_EVAL_SETTINGS.EXTRACT_FEATURES_TRUNK_ONLY=True', # Turn on model evaluation mode.
+              'config.MODEL.FEATURE_EVAL_SETTINGS.SHOULD_FLATTEN_FEATS=True', # Turn on model evaluation mode.
+              '+config.MODEL.HEAD.PARAMS=[]', # Turn on model evaluation mode.
         ]
         if "10B" in args.model:
             cfg.append("config.MODEL.AMP_PARAMS.USE_AMP=true")
