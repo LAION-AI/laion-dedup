@@ -9,6 +9,12 @@ The goal of this repository is to provide different tools for deduplication, whi
 
 ## Resources
 
+### Software 
+
 - Locality-sensitive hashing (LSH) with FAISS: <https://faiss.ai/cpp_api/struct/structfaiss_1_1IndexLSH.html>
 - PHash <https://www.phash.org>, near-duplicate detection based on discrete cosine transform
 
+
+### Datasets for evaluation
+
+- Copydays: <https://lear.inrialpes.fr/~jegou/data.php>
