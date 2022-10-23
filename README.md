@@ -12,8 +12,9 @@ The goal of this repository is to provide different tools for deduplication, whi
 ### Software 
 
 - Locality-sensitive hashing (LSH) with FAISS: <https://faiss.ai/cpp_api/struct/structfaiss_1_1IndexLSH.html>
+- https://pypi.org/project/ImageHash/
 - PHash <https://www.phash.org>, near-duplicate detection based on discrete cosine transform
-
+- https://docs.opencv.org/3.4/d4/d93/group__img__hash.html
 
 ### Datasets for evaluation
 
