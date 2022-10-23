@@ -189,6 +189,10 @@ def extract_features_batch(model, samples, args):
             "last_hidden_state": hid[0],
             "hidden_states": hid,
         }
+    elif args.library == "isc21_lyakaap":
+        output = {
+            "last_hidden_state": model(samples)
+        }
     else:
         raise ValueError(args.library)
     shape = output["last_hidden_state"].shape
@@ -217,6 +221,11 @@ def extract_features_batch(model, samples, args):
             # print("before rmac", feats.shape)
             feats = rmac.get_rmac_descriptors(feats, args.rmac_levels, pca=args.pca, normalize=True)
             # print("after rmac", feats.shape)
+    elif len(shape) == 2:
+        feats = output["last_hidden_state"]
+        print(feats.shape)
+        print(feats)
+        print(feats.norm(dim=1))
     else:
         raise ValueError(shape)
     if len(feats.shape) == 2:
@@ -332,6 +341,48 @@ def load_model_and_transform(args):
         model = nn.Sequential()
         model.enc = CNN()
         transform = None
+    elif args.library == "isc21_lyakaap":
+        import isc21_lyakaap
+        import timm
+        import torchvision.transforms as transforms
+        import torch
+        class Params:
+            pass
+        params = Params()
+        params.arch = "tf_efficientnetv2_m_in21ft1k"
+        params.gem_p = 3.0
+        params.gem_eval_p = 1.0
+        params.weight = "isc21_lyakaap/checkpoint_0009.pth.tar"
+        extra_params = args.model.split(",")
+        kw = {}
+        for p in extra_params:
+            if "=" in p:
+                k, v = p.split("=")
+                kw[k] = v
+        params.tta = bool(kw.get("tta", False))
+        params.input_size = int(kw.get("input_size", 512))
+        backbone = timm.create_model(params.arch, features_only=True, pretrained=True)
+        model = isc21_lyakaap.ISCNet(backbone, p=params.gem_p, eval_p=params.gem_eval_p)
+        state_dict = torch.load(params.weight, map_location='cpu')['state_dict']
+        model = torch.nn.DataParallel(model)
+        model.load_state_dict(state_dict, strict=True)
+        model = model.module
+        model.eval().cuda()
+        if params.tta:
+            preprocesses = [
+                transforms.Resize((int(params.input_size * 1.4142135623730951), int(params.input_size * 1.4142135623730951))),
+                transforms.ToTensor(),
+                transforms.Lambda(lambda x: x.repeat(3, 1, 1) if x.shape[0] == 1 else x),    
+                transforms.Normalize(mean=backbone.default_cfg['mean'], std=backbone.default_cfg['std'])
+            ]
+        else:
+            preprocesses = [
+                transforms.Resize((params.input_size, params.input_size)),
+                transforms.ToTensor(),
+                transforms.Lambda(lambda x: x.repeat(3, 1, 1) if x.shape[0] == 1 else x),    
+                transforms.Normalize(mean=backbone.default_cfg['mean'], std=backbone.default_cfg['std'])
+            ]
+        transform = transforms.Compose(preprocesses) 
     elif args.library == "vissl":
         import torch
         from omegaconf import OmegaConf
