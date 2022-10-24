@@ -157,7 +157,7 @@ class ImgListDataset(torch.utils.data.Dataset):
 
 def is_image_file(s):
     ext = s.split(".")[-1]
-    return ext in ['jpg', 'jpeg', 'png', 'ppm', 'bmp', 'pgm', 'tif', 'tiff', 'webp']:
+    return ext in ['jpg', 'jpeg', 'png', 'ppm', 'bmp', 'pgm', 'tif', 'tiff', 'webp']
 
 def extract_features_batch(model, samples, args):
     kw = {}
@@ -338,7 +338,6 @@ def load_model_and_transform(args):
         transform = None
     elif args.library == "isc21_lyakaap":
         import isc21_lyakaap
-        import timm
         import torchvision.transforms as transforms
         import torch
         class Params:

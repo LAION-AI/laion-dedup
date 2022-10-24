@@ -21,7 +21,7 @@ try:
     from timm.data import resolve_data_config
     from timm.data.transforms_factory import create_transform
     has_timm = True
-except ImportError:
+except ImportError as ex:
     has_timm = False
 
 try:
@@ -137,8 +137,8 @@ def run(args):
     else:
         raise ValueError(args.dataset_type)
 
-    chunk = []
-    meta_chunk = []
+    features_chunks = []
+    meta_chunks = []
     chunk_id = 0
     nb = 0
     t0 = time.time()
@@ -149,27 +149,28 @@ def run(args):
             features = features.data.cpu()
         features = features.view(len(features), -1)
         features = features.numpy()
-        chunk.append(features)
-        meta_chunk.extend(meta)
+        features_chunks.append(features)
+        meta_chunks.extend(meta)
         nb += len(X)
-        if len(chunk) == args.batches_per_chunk:
-            features = np.concatenate(chunk)
+        if len(features_chunks) == args.batches_per_chunk:
+            features = np.concatenate(features_chunks)
             np.save(os.path.join(emb_folder, f"{chunk_id}_{rank}_{args.run_id}"), features)
-            np.save(os.path.join(meta_folder, f"{chunk_id}_{rank}_{args.run_id}"), meta_chunk)
+            np.save(os.path.join(meta_folder, f"{chunk_id}_{rank}_{args.run_id}"), meta_chunks)
             chunk_id += 1
-            chunk = []
-            meta_chunk = []
+            features_chunks = []
+            meta_chunks = []
             if rank == 0:
                 total = nb*world_size
                 throughput = total / (time.time() - t0)
                 print(f"Total nb of images processed: {total}. Throughput: {throughput:.2f} images per sec")
     # final
-    if len(chunk):
-        features = np.concatenate(chunk)
-        np.save(os.path.join(emb_folder, f"{chunk_id}_{rank}_{args.run_id}"), features)
-        np.save(os.path.join(meta_folder, f"{chunk_id}_{rank}_{args.run_id}"), meta_chunk)
+    if len(features_chunks):
+        features = np.concatenate(features_chunks)
+        np.save(os.path.join(emb_folder, f"{chunk_id}_{rank}_{args.run_id}"), features_chunks)
+        np.save(os.path.join(meta_folder, f"{chunk_id}_{rank}_{args.run_id}"), meta_chunks)
     print("Finished")
-    dist.barrier()
+    if args.distributed:
+        dist.barrier()
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover
