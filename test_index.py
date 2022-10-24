@@ -95,6 +95,7 @@ def main(
     dataset_name="cifar10",
     root="root",
     cosine_similarity_threshold=0.94,
+    split="test",
     index="indexes/seer_1.5B/knn.index",
     metadata="embeddings/seer_1.5B/meta",
     batch_size=128,
@@ -123,7 +124,8 @@ def main(
         start = end
 
     image_index = faiss.read_index(index)
-    model_config = torch.load(model_config, map_location="cpu")
+    model_config_name = model_config
+    model_config = torch.load(model_config_name, map_location="cpu")
     model, transform = load_model_and_transform(model_config)
     if device == "cuda":
         model_config.pca.to_cuda()
@@ -135,6 +137,7 @@ def main(
         dataset_name=dataset_name,
         root=root,
         download=True,
+        split=split,
         transform=partial(resize, tf=transform),
     )
     collate_fn = get_dataset_collate_fn(dataset_name)
@@ -145,9 +148,11 @@ def main(
         num_workers=num_workers,
         collate_fn=collate_fn,
     )
-    if os.path.exists('features.npy'):
+    features_cache = os.path.join(out, f"{dataset_name.replace('/','_')}_{index.replace('/','_')}_{model_config_name.replace('/', '_')}.npy")
+    print(features_cache)
+    if os.path.exists(features_cache):
         print("loading cached features...")
-        image_features = np.load("features.npy")
+        image_features = np.load(features_cache)
     else:
         # Compute image features
         image_features_list = []
@@ -159,7 +164,7 @@ def main(
             image_features = image_features.view(len(image_features), -1)
             image_features_list.append(image_features)
         image_features = np.concatenate(image_features_list)
-        np.save("features", image_features)
+        np.save(features_cache, image_features)
 
     # Get embeddings from indexed data (i.e., LAION) that are close to the 
     # image embeddings of the dataset
@@ -170,6 +175,9 @@ def main(
     print("Score:", D.mean())
     L, D, I = image_index.range_search(image_features, cosine_similarity_threshold)
     ds.transform = None
+    ds.transforms = None
+    print(ds[0][0])
+    print(ds[0][1])
     i = 0
     nb = 0
     assert len(L) - 1 == len(image_features)
