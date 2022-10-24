@@ -223,9 +223,9 @@ def extract_features_batch(model, samples, args):
             # print("after rmac", feats.shape)
     elif len(shape) == 2:
         feats = output["last_hidden_state"]
-        print(feats.shape)
-        print(feats)
-        print(feats.norm(dim=1))
+        # print(feats.shape)
+        # print(feats)
+        # print(feats.norm(dim=1))
     else:
         raise ValueError(shape)
     if len(feats.shape) == 2:
@@ -298,6 +298,7 @@ def extract_features(image_list, model, transform, args, only_rank_zero=True, to
 def load_model_and_transform(args):
     if args.library == "timm":
         assert has_timm
+        import timm
         kw = {}
         kw_data = {}
         if args.imsize:
