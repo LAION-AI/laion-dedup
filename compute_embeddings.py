@@ -15,6 +15,22 @@ try:
     has_wds = True
 except ImportError:
     has_wds = False
+
+try:
+    import timm
+    from timm.data import resolve_data_config
+    from timm.data.transforms_factory import create_transform
+    has_timm = True
+except ImportError:
+    has_timm = False
+
+try:
+    import transformers
+    from transformers import AutoFeatureExtractor
+    has_huggingface = True
+except ImportError:
+    has_huggingface = False
+
 from eval_copy_detection import load_model_and_transform, extract_features_batch
 
 def main():
@@ -68,12 +84,6 @@ def run(args):
         import utils
         utils.init_distributed_mode(args)
         local_rank, rank, world_size = world_info_from_env()
-        # env variables used by  webdataset for sharding
-        # os.environ['LOCAL_RANK'] = str(local_rank)
-        # os.environ['RANK'] = str(rank)
-        # os.environ['WORLD_SIZE'] = str(world_size)
-        # device = f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu"
-        # torch.cuda.set_device(device)
         print(local_rank, rank, world_size)
     else:
         rank = 0
@@ -85,7 +95,6 @@ def run(args):
     if rank == 0:
         os.makedirs(emb_folder, exist_ok=True)
         os.makedirs(meta_folder, exist_ok=True)
-
     torch.backends.cudnn.benchmark = True
         
     model_config = torch.load(args.model_config)

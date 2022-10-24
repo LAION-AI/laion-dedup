@@ -42,6 +42,7 @@ try:
     has_huggingface = True
 except ImportError:
     has_huggingface = False
+
 class CopydaysDataset():
     def __init__(self, basedir):
         self.basedir = basedir
@@ -156,13 +157,10 @@ class ImgListDataset(torch.utils.data.Dataset):
 
 def is_image_file(s):
     ext = s.split(".")[-1]
-    if ext in ['jpg', 'jpeg', 'png', 'ppm', 'bmp', 'pgm', 'tif', 'tiff', 'webp']:
-        return True
-    return False
+    return ext in ['jpg', 'jpeg', 'png', 'ppm', 'bmp', 'pgm', 'tif', 'tiff', 'webp']:
 
 def extract_features_batch(model, samples, args):
-    kw = dict(
-    )
+    kw = {}
     if args.interpolate_pos_encoding:
         kw['interpolate_pos_encoding'] = True
     if args.library == "huggingface":
@@ -218,14 +216,11 @@ def extract_features_batch(model, samples, args):
         # ConvNet Like
         feats = output["hidden_states"][args.layer_id]
         if args.rmac:
-            # print("before rmac", feats.shape)
             feats = rmac.get_rmac_descriptors(feats, args.rmac_levels, pca=args.pca, normalize=True)
-            # print("after rmac", feats.shape)
+        else:
+            feats = torch.nn.functional.avg_pool2d(feats.pow(4), (h, w)).pow(1. / 4).reshape(b, -1)
     elif len(shape) == 2:
         feats = output["last_hidden_state"]
-        # print(feats.shape)
-        # print(feats)
-        # print(feats.norm(dim=1))
     else:
         raise ValueError(shape)
     if len(feats.shape) == 2:
@@ -298,7 +293,6 @@ def extract_features(image_list, model, transform, args, only_rank_zero=True, to
 def load_model_and_transform(args):
     if args.library == "timm":
         assert has_timm
-        import timm
         kw = {}
         kw_data = {}
         if args.imsize:
@@ -395,7 +389,6 @@ def load_model_and_transform(args):
         config = {
             "seer_1.5B": "regnet256Gf_1.yaml",
             "seer_10B": "regnet10B.yaml",
-            "seer_10B_sliced": "regnet10B.yaml",
         }[args.model]
         ckpt = args.model + ".th"
         cfg = [
@@ -434,7 +427,6 @@ def load_model_and_transform(args):
         fe = {
             "seer_1.5B": "facebook/regnet-y-1280-seer",
             "seer_10B": "facebook/regnet-y-10b-seer",
-            "seer_10B_sliced": "facebook/regnet-y-10b-seer",
         }[args.model]
         fe = AutoFeatureExtractor.from_pretrained(fe, **kw)
         def prepro(image):
